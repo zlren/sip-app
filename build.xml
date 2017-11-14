@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<!--  DIALOGIC CONFIDENTIAL  -->
+<!--  Copyright (C) 2005-2013 Dialogic Corporation. All Rights Reserved.  -->
+<!--  The source code contained or described herein and all documents related to  -->
+<!--  the source code ("Material") are owned by Dialogic Corporation or its  -->
+<!--  suppliers or licensors.  Title to the Material remains with Dialogic  -->
+<!--  Corporation or its suppliers and licensors.  The Material contains trade  -->
+<!--  secrets and proprietary and confidential information of Dialogic or its  -->
+<!--  suppliers and licensors.  The Material is protected by worldwide copyright  -->
+<!--  and trade secret laws and treaty provisions.  No part of the Material may be  -->
+<!--  used, copied, reproduced, modified, published, uploaded, posted, transmitted,  -->
+<!--  distributed, or disclosed in any way without Dialogic's prior express written  -->
+<!--  permission.  -->
+<!--  No license under any patent, copyright, trade secret or other intellectual  -->
+<!--  property right is granted to or conferred upon you by disclosure or delivery  -->
+<!--  of the Materials, either expressly, by implication, inducement, estoppel or  -->
+<!--  otherwise.  Any license under such intellectual property rights must be  -->
+<!--  express and approved by Dialogic in writing.  -->
+
+
+
+<project default="demo">
+	<target name="demo" depends="create_manifest, compiledemo, create_demo_app_war" />
+
+	<property environment="env" />
+	<property name="DEPLOY_SRC" value="./sample-src" />
+	<property name="DEPLOY_WEBINF" value="./WEB-INF" />
+	<property name="DESCRIPTOR_DIR" value="./deploymentDescriptor" />
+	<property name="PROPERTIES" value="./properties" />
+	<property name="DEPLOY_DIR" value="./demo_app" />
+	<property name="DEPLOY_LIBS" value="./lib" />
+
+	<!--target name="compile" -->
+	<target name="compiledemo" >
+		<mkdir dir="${DEPLOY_WEBINF}/classes"/>
+		<javac destdir="${DEPLOY_WEBINF}/classes" srcdir="${DEPLOY_SRC}" debug="true" includeantruntime="false" debuglevel="lines,vars,source">
+			<classpath>
+				<pathelement path="${DEPLOY_LIBS}/dlgmsc.jar" />
+				<pathelement path="${DEPLOY_LIBS}/msmltypes.jar" />
+				<pathelement path="${DEPLOY_LIBS}/log4j-api-2.2.jar" />
+				<pathelement path="${DEPLOY_LIBS}/slf4j-core-2.2.jar" />
+				<pathelement path="${DEPLOY_LIBS}/slf4j-api-1.7.19.jar" />
+				<pathelement path="${DEPLOY_LIBS}/log4j-slf4j-impl-2.2" />
+				<pathelement path="${DEPLOY_LIBS}/jain-sip-sdp-1.2.158.jar" />
+				<pathelement path="${DEPLOY_LIBS}/dlgcsmiltypes.jar" />
+				<pathelement path="${DEPLOY_LIBS}/xbean.jar" />
+				<pathelement path="${DEPLOY_LIBS}/mscontrol.jar" />
+				<pathelement path="${DEPLOY_LIBS}/mysql-connector-java-5.1.34.jar" />
+				<pathelement path="${DEPLOY_LIBS}/servlet-api-2.5.jar" />
+				<pathelement path="${DEPLOY_LIBS}/fastjson-1.2.17.jar" />
+				<pathelement path="${DEPLOY_LIBS}/quartz-2.2.1.jar" />
+				
+				<!-- Platform Specific Libraries to use - only use one set: -->
+				<!-- TeleStax-Mobicents-JBoss: -->
+				<pathelement path="${DEPLOY_LIBS}/jboss-servlet-api_3.0_spec-1.0.2.Final.jar" />
+				<pathelement path="${DEPLOY_LIBS}/sip-servlets-spec-3.1.633.jar" />
+
+				<!-- TeleStax-TelScale-JBoss:
+				<pathelement path="${DEPLOY_LIBS}/jboss-servlet-api_3.0_spec-1.0.2.Final.jar" />
+				<pathelement path="${DEPLOY_LIBS}/sip-servlets-spec-7.0.2.GA-TelScale.jar" /> -->
+			</classpath>
+		</javac>
+	</target>
+
+	<target name="create_manifest">
+		<tstamp>
+			<format property="TODAY" pattern="yyyy-MM-dd HH:mm:ss:sss zzz" locale="en,US"/>
+		</tstamp>
+		<manifest file="MANIFEST.MF">
+			<attribute name="Build-By" value="${user.name}" />
+			<attribute name="Built-Date" value="${TODAY}" />
+		</manifest>
+	</target>
+
+
+	
+	<target name="create_demo_app_war">
+		<copy file="./${DESCRIPTOR_DIR}/sip.xml"  todir="${DEPLOY_WEBINF}" />
+		<copy file="./${DESCRIPTOR_DIR}/web.xml"  todir="${DEPLOY_WEBINF}" />
+		<copy file="./${DEPLOY_LIBS}/dlgmsc.jar" todir="./lib/" />
+		<jar destfile="${DEPLOY_DIR}/demo_app.war" manifest="MANIFEST.MF">
+			<zipfileset dir="WEB-INF" prefix="WEB-INF" includes="*.xml" />
+			<zipfileset dir="WEB-INF/classes" prefix="WEB-INF/classes" />
+			<zipfileset dir="lib" prefix="WEB-INF/lib" includes="*.jar" />
+		</jar>
+		<delete dir="${DEPLOY_WEBINF}"/>
+		<delete file="MANIFEST.MF" />
+	</target>
+
+	<target name="clean">
+		<delete dir="${DEPLOY_WEBINF}" />
+		<delete dir="${DEPLOY_DIR}" />
+		<delete file="MANIFEST.MF" />
+	</target>
+
+</project>
