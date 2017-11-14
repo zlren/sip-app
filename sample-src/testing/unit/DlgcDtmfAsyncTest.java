@@ -274,7 +274,7 @@ import testing.DlgcTest;
 				mediaSession.setAttribute("NETWORK_CONNECTION", networkConnection);
 				mediaSession.setAttribute("MEDIAGROUP", mediaGroup);
 				
-				networkConnection.getSdpPortManager().addListener(speListener);
+//				networkConnection.getSdpPortManager().addListener(speListener);
 				
 				SignalDetector sg = mediaGroup.getSignalDetector();
 				sg.addListener(sigDetListener);

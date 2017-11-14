@@ -553,7 +553,7 @@ public class DlgcDtmfPromptCollectTest extends  DlgcTest {
 				mediaSession.setAttribute("SIP_REQUEST", req);
 				mediaSession.setAttribute("NETWORK_CONNECTION", networkConnection);
 				
-				networkConnection.getSdpPortManager().addListener(speListener);
+//				networkConnection.getSdpPortManager().addListener(speListener);
 				mediaGroup.getSignalDetector().addListener(sigDetListener);
 				
 				mediaGroup.join(Joinable.Direction.DUPLEX, networkConnection);

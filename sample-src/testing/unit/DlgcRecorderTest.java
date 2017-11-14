@@ -498,7 +498,7 @@ static public  final Map<String, Value> supportedVideoCodecTable = new HashMap<S
 				mediaSession.setAttribute("SIP_REQUESTnetworkConnection", req);
 				mediaSession.setAttribute("NETWORK_CONNECTION", networkConnection);
 				
-				networkConnection.getSdpPortManager().addListener(speListener);
+//				networkConnection.getSdpPortManager().addListener(speListener);
 				mediaGroup.getRecorder().addListener(new RecorderEventListener());
 				mediaGroup.getPlayer().addListener(new PlayerEventListener());
 				
