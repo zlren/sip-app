@@ -93,7 +93,7 @@ import java.util.Properties;
  * @brief Dialogic base test class.
  * 
  */
-public abstract class DlgcTest extends SipServlet implements Serializable, SipServletListener {
+public abstract class DlgcTest extends SipServlet implements Serializable, SipServletListener { // 
 	/**
 	 * 
 	 */
@@ -117,7 +117,7 @@ public abstract class DlgcTest extends SipServlet implements Serializable, SipSe
 	
 	protected static String dlgcDriverName = "com.dialogic.dlg309";
 	public MsControlFactory mscFactory;
-	transient protected DlgcSdpPortEventListener speListener;
+//	transient protected DlgcSdpPortEventListener speListener;
 	transient protected Driver dlgcDriver = null;
 	
 	private static Logger log = LoggerFactory.getLogger(DlgcTest.class);
@@ -166,7 +166,7 @@ public abstract class DlgcTest extends SipServlet implements Serializable, SipSe
 			}
 
 			// mscFactory = dlgcDriver.getFactory(null);
-			speListener = new DlgcSdpPortEventListener();
+//			speListener = new DlgcSdpPortEventListener();
 		} catch (Exception e) {
 			// throw new ServletException(e);
 			log.error("Error in servletInitialized", e.toString());
@@ -174,24 +174,24 @@ public abstract class DlgcTest extends SipServlet implements Serializable, SipSe
 		}
 	}
 
-	@Override
-	public void doBye(final SipServletRequest req) throws ServletException, IOException {
-		// req.createResponse(SipServletResponse.SC_OK).send();
-
-		NetworkConnection nc = (NetworkConnection) req.getSession().getAttribute("NETWORK_CONNECTION");
-		// log.debug("UUUUUUUUUUUUUUUU NC# " +
-		// DlgcConferenceTest.ncCount.toString() + " SAS= " +
-		// ((DlgcProxy)nc).getProxyId() + " UUUUUUUUU" );
-		// log.debug("UUUUUUUUUUUUUUUU NC# " +
-		// DlgcConferenceTest.ncCount.toString() + " SASOBJ = " +
-		// ((DlgcProxy)nc).getProxySAS() + " UUUUUU");
-		if (nc != null) {
-			nc.release();
-		}
-		req.createResponse(SipServletResponse.SC_OK).send();
-
-		releaseSession(req.getSession());
-	}
+//	@Override
+//	public void doBye(final SipServletRequest req) throws ServletException, IOException {
+//		// req.createResponse(SipServletResponse.SC_OK).send();
+//
+//		NetworkConnection nc = (NetworkConnection) req.getSession().getAttribute("NETWORK_CONNECTION");
+//		// log.debug("UUUUUUUUUUUUUUUU NC# " +
+//		// DlgcConferenceTest.ncCount.toString() + " SAS= " +
+//		// ((DlgcProxy)nc).getProxyId() + " UUUUUUUUU" );
+//		// log.debug("UUUUUUUUUUUUUUUU NC# " +
+//		// DlgcConferenceTest.ncCount.toString() + " SASOBJ = " +
+//		// ((DlgcProxy)nc).getProxySAS() + " UUUUUU");
+//		if (nc != null) {
+//			nc.release();
+//		}
+//		req.createResponse(SipServletResponse.SC_OK).send();
+//
+//		releaseSession(req.getSession());
+//	}
 
 	
 //	@Override
@@ -258,16 +258,16 @@ public abstract class DlgcTest extends SipServlet implements Serializable, SipSe
 //		releaseSession(req.getSession());
 //	}
 //
-	protected void releaseSession(SipSession session) {
-		// log.debug(" RRRRRRRRRRRRRRRRRRRR DlgcTest: Releasing session and SAS
-		// RRRRRRRRRRRRRRRRRRRR");
-		try {
-			session.invalidate();
-			session.getApplicationSession().invalidate();
-		} catch (Exception e) {
-		}
-	}
-
+//	protected void releaseSession(SipSession session) {
+//		// log.debug(" RRRRRRRRRRRRRRRRRRRR DlgcTest: Releasing session and SAS
+//		// RRRRRRRRRRRRRRRRRRRR");
+//		try {
+//			session.invalidate();
+//			session.getApplicationSession().invalidate();
+//		} catch (Exception e) {
+//		}
+//	}
+//
 	public void printDriverInfo(SipServletRequest req) throws ServletException, IOException {
 		log.info("doInvite");
 

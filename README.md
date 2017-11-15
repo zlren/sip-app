@@ -10,11 +10,11 @@
 
 - SipServlet
   - CentOS 7.2 （CentOS-7-x86_64-DVD-1511.iso）
-  - GNOME Desktop（Compatibility Libraries and Development Tools）
+  - GNOME Desktop（Compatibility Libraries & Development Tools）
 - XMS 3.3
   - 16104.rc1
 
-安装 `lrzsz` 后可以使用 `rz` 命令进行上传
+安装 `lrzsz` 后可以使用 `rz` 命令进行文件上传
 
 ```sh
 rpm -ivh lrzsz-0.12.20-36.el7.x86_64.rpm
@@ -319,6 +319,6 @@ cd /root/mss-3.1.633-jboss-as-7.2.0.Final/bin
 ./run.sh
 ```
 
->  附 x-Lite 的 SIP 账户配置
->
-> ![](https://ws1.sinaimg.cn/large/006tNc79ly1fliihsfthxj30i60h1wfy.jpg)
+> 附 x-Lite 的 SIP 账户配置
+
+![](https://ws1.sinaimg.cn/large/006tNc79ly1fliihsfthxj30i60h1wfy.jpg)

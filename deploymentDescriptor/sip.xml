@@ -8,20 +8,19 @@
 		<session-timeout>0</session-timeout>
 	</session-config>
 
-	<servlet>
+ 	<servlet>
 		<description>XMS Keep Alive Monitor</description>
 		<display-name>KeepAliveMonitor</display-name>
 		<servlet-name>DlgcMsMonitorServlet</servlet-name>
 		<servlet-class>com.vendor.dialogic.javax.media.mscontrol.sip.DlgcMsMonitorServlet
 		</servlet-class>
-		<load-on-startup>1</load-on-startup>
+		<load-on-startup>3</load-on-startup>
 	</servlet>
 	<listener>
 		<listener-class>
 			com.vendor.dialogic.javax.media.mscontrol.sip.DlgcMsMonitorServlet
 		</listener-class>
-	</listener>
-
+	</listener> 
 
 
 	<servlet>
