@@ -1,14 +1,18 @@
-### 武汉融合通信 SipServlet
+### 融合通信 SipServlet
 
-> 主要功能点为 `跨域呼叫`，使用 `XMS` 作为媒体服务器
+主要功能点为 `跨域呼叫`，使用 `XMS` 作为媒体服务器，并提供一定的网络丢包容错能力
+
+> 跨域呼叫：两个不同 SIP 服务器的用户可以互相通话
 
 ### 部署过程
 
 #### Linux
 
-CentOS 7.2 （CentOS-7-x86_64-DVD-1511.iso）
-
-GNOME Desktop（Compatibility Libraries and Development Tools）
+- SipServlet
+  - CentOS 7.2 （CentOS-7-x86_64-DVD-1511.iso）
+  - GNOME Desktop（Compatibility Libraries and Development Tools）
+- XMS 3.3
+  - 16104.rc1
 
 安装 `lrzsz` 后可以使用 `rz` 命令进行上传
 
@@ -16,7 +20,7 @@ GNOME Desktop（Compatibility Libraries and Development Tools）
 rpm -ivh lrzsz-0.12.20-36.el7.x86_64.rpm
 ```
 
-关闭防火墙
+关闭并禁用防火墙
 
 ```sh
 systemctl stop firewalld.service
@@ -43,7 +47,7 @@ useradd -g mysql mysql
 
 ```sh
 tar -zxvf mysql-advanced-5.6.24-linux-glibc2.5-x86_64.tar.gz
-mv mysql-tab mysql
+mv mysql<tab> mysql
 ```
 
 ```sh
@@ -103,19 +107,25 @@ mysql -u root -p
 use mysql;
 update user set password=password('123456') where user='root'and host='localhost';
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '123456' WITH GRANT OPTION;
-FLUSH PRIVILEGES ;
+FLUSH PRIVILEGES;
 ```
 
 #### JDK 1.7
+
+移除自带的 java 相关的组件
 
 ```shell
 rpm -qa | grep java
 rpm -e --nodeps 所有上面列出的条目
 ```
 
+安装 jdk
+
 ```sh
 rpm -ivh jdk-7u79-linux-x64.rpm
 ```
+
+配置环境变量
 
 ```sh
 vim /etc/profile
@@ -130,6 +140,8 @@ export PATH=$PATH:$JAVA_HOME/bin
 ```sh
 source /etc/profile
 ```
+
+验证
 
 ```sh
 java -version
@@ -150,6 +162,7 @@ cd libevent-2.0.22-stable
 ```
 
 ```shell
+cd ..
 tar -xvzf tmux-2.1.tar.gz
 cd tmux-2.1
 LDFLAGS="-L/usr/local/lib -Wl,-rpath=/usr/local/lib" ./configure --prefix=/usr/local
@@ -158,55 +171,73 @@ make && make install
 
 #### JBoss & SipServlet
 
-把 `mss-3.1.633-jboss-as-7.2.0.Final.zip` 放在 `/root` 下
+把 `mss-3.1.633-jboss-as-7.2.0.Final.zip` 放在 `/root` 下并解压
 
 ```shell
 unzip mss-3.1.633-jboss-as-7.2.0.Final.zip
 ```
 
-`change-ip-sip-servlet.sh` 放在 `mss` 目录下
+将脚本 `change-ip-sip-servlet.sh` 放在 `mss` 目录下，赋予执行权限后执行脚本
 
-```shell
+```sh
 chmod 777 change-ip-sip-servlet.sh
 ./change-ip-sip-servlet.sh
 ```
+
+新建 env 文件夹，用于放置配置文件
 
 ```shell
 mkdir env && cd env
 ```
 
-```shell
+配置文件 `sysstr.env`
+
+```bash
 echo "realm 10.109.246.93" > sysstr.env
 ```
 
-```shell
+配置文件 `jdbc.properties`
+
+```sh
 vim jdbc.properties
+```
+
+```bash
 jdbc.driverClass=com.mysql.jdbc.Driver
 jdbc.url=jdbc:mysql://10.109.246.143:3306/my_sip_app_test
 jdbc.userName=zlren
 jdbc.password=Lab2016!
 ```
 
+不太懂这句是做什么
+
 ```shell
 cd /root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/
 java -cp ../../modules/system/layers/base/org/picketbox/main/picketbox-4.0.15.Final.jar org.jboss.security.auth.callback.RFC2617Digest admin sip-servlets secret
 ```
 
+这句可以不用做
+
 ```shell
 echo "admin=<hash>" > sip-servlets-users.properties
 ```
 
-在 `configuration` 下
+在 `configuration` 下，生成证书
 
 ```shell
+cd /root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/
 mkdir ca && cd ca
 keytool -genkeypair -alias myserver -keyalg RSA -keysize 1024 -keypass secret -validity 365 -storetype jks -keystore myserver.jks -storepass secret -v -dname "CN=James Smith, OU=Engineering, O=My Company, L=My City, S=My State, C=US"
 ```
+
+修改启动脚本
 
 ```shell
 vim /root/mss-3.1.633-jboss-as-7.2.0.Final/bin/run.sh
 ./standalone.sh -Djavax.net.ssl.keyStorePassword=secret -Dgov.nist.javax.sip.TLS_CLIENT_AUTH_TYPE=Disabled -Djavax.net.ssl.keyStore=/root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/ca/myserver.jks -Djavax.net.ssl.trustStorePassword=secret -Djavax.net.ssl.trustStore=/root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/ca/myserver.jks
 ```
+
+配置 `https`、`wss` 和 `5083`
 
 ```shell
 vim /root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/standalone-sip.xml
@@ -226,6 +257,8 @@ vim /root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/standalone-s
 <connector name="sip-wss" protocol="SIP/2.0" scheme="sip" socket-binding="sip-wss"/>
 <socket-binding name="sip-wss" port="5083"/>
 ```
+
+部署 `war` 包
 
 ```shell
 cd /root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/deployments/
@@ -249,13 +282,15 @@ ALL: ("com.zczg.app.SipAppP2PApplication","DAR:From", "ORIGINATING", "", "NO_ROU
 # CANCEL: ("com.zczg.app.SipAppP2PApplication.SipAppP2PServlet","DAR:From", "ORIGINATING", "", "NO_ROUTE", "0")
 ```
 
+#### XMS
+
 修改配置文件
 
 ```shell
 vim /root/mss-3.1.633-jboss-as-7.2.0.Final/bin/standalone.sh
 ```
 
-`export JBOSS_HOME` 的后面
+在 `export JBOSS_HOME` 的后面添加
 
 ```shell
 # Dialogic additions
@@ -264,23 +299,26 @@ export DIALOGIC_DEMO_PROPERTY_FILE=${JBOSS_HOME}/standalone/configuration/dlgc_d
 export DLG_PROPERTY_FILE=${JBOSS_HOME}/standalone/configuration/dlgc_JSR309.properties
 ```
 
-`dlgc_demos.properties` 和 `dlgc_JSR309.properties` 放在 `configuration` 下
+将 `dlgc_demos.properties` 和 `dlgc_JSR309.properties` 放在 `configuration` 下
 
 ```shell
 vim /root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/dlgc_JSR309.properties
 ```
 
 ```shell
-connector.sip.address=xx
+connector.sip.address=${服务器的 IP 地址}
 connector.sip.port=5080
-mediaserver.1.sip.address=xx
+mediaserver.1.sip.address=${XMS 的 IP 地址}
 mediaserver.1.sip.port=5060
 ```
 
-#### 启动
+### 启动
 
 ```shell
 cd /root/mss-3.1.633-jboss-as-7.2.0.Final/bin
 ./run.sh
 ```
 
+>  附 x-Lite 的 SIP 账户配置
+>
+> ![](https://ws1.sinaimg.cn/large/006tNc79ly1fliihsfthxj30i60h1wfy.jpg)
