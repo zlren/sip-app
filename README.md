@@ -4,6 +4,26 @@
 
 > 跨域呼叫：两个不同 SIP 服务器的用户可以互相通话
 
+### 所需安装文件
+
+- Linux 镜像
+  - CentOS-7-x86_64-DVD-1511.iso
+  - PowerMedia-3.3.16104-1.c7.x86_64.iso
+- 安装包
+  - lrzsz-0.12.20-36.el7.x86_64.rpm
+  - mysql-advanced-5.6.24-linux-glibc2.5-x86_64.tar.gz
+  - jdk-7u79-linux-x64.rpm
+  - xmlstarlet-1.5.0-1.el6.rf.x86_64.rpm
+  - ncurses-devel-5.9-13.20130511.el7.x86_64.rpm
+  - libevent-2.0.22-stable.tar.gz
+  - mss-3.1.633-jboss-as-7.2.0.Final.zip
+- 配置文件
+  - change-ip-sip-servlet.sh
+  - dlgc_demos.properties
+  - dlgc_JSR309.properties
+
+> 最后三个配置文件在项目的 `env` 文件夹中
+
 ### 部署过程
 
 #### Linux
@@ -207,6 +227,12 @@ jdbc.driverClass=com.mysql.jdbc.Driver
 jdbc.url=jdbc:mysql://10.109.246.143:3306/my_sip_app_test
 jdbc.userName=zlren
 jdbc.password=Lab2016!
+```
+
+配置文件 `heart.properties`
+
+```shell
+echo "enable=1" > sysstr.env
 ```
 
 不太懂这句是做什么

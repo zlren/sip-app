@@ -165,7 +165,7 @@ public class DlgcAsyncPlayerTest extends DlgcTest
 				mediaSession.setAttribute("SIP_REQUEST", req);
 				mediaSession.setAttribute("NETWORK_CONNECTION", networkConnection);
 				
-				networkConnection.getSdpPortManager().addListener(speListener);
+//				networkConnection.getSdpPortManager().addListener(speListener);
 				mediaGroup.getPlayer().addListener(new PlayerEventListener());
 				mediaGroup.addListener(new JoinEventHandler());
 				
