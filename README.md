@@ -232,7 +232,7 @@ jdbc.password=Lab2016!
 配置文件 `heart.properties`
 
 ```shell
-echo "enable=1" > sysstr.env
+echo "enable=1" > heart.properties
 ```
 
 不太懂这句是做什么
