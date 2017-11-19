@@ -25,11 +25,12 @@ public class HeartBeatEnv {
 			// 当且仅当enable属性配置成1的时候，心跳检测开启
 			if ("1".equals(enable)) {
 				ENABLE = true;
-				logger.info("心跳检测开启");
+				logger.error("heartbeat enabled");
 			} else {
-				logger.info("心跳检测关闭");
+				logger.error("heartbeat disabled");
 			}
 		} catch (Exception e) {
+			logger.error("heartbeat disabled");
 		}
 	}
 }

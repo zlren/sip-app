@@ -1,10 +1,12 @@
 package com.zczg.app;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.URI;
-import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.media.mscontrol.MediaEventListener;
@@ -29,17 +31,22 @@ import javax.servlet.sip.Address;
 import javax.servlet.sip.Proxy;
 import javax.servlet.sip.ServletTimer;
 import javax.servlet.sip.SipFactory;
+import javax.servlet.sip.TimerListener;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.zczg.timeout.HeartBeatClient;
+import com.zczg.timeout.HeartBeatEnv;
+import com.zczg.timeout.HeartBeatServer;
+import com.zczg.timeout.Realm;
 import com.zczg.util.CurEnv;
 import com.zczg.util.JDBCUtils;
 import com.zczg.util.RandomCharUtil;
 
 import testing.DlgcTest;
 
-public class MyTestApp extends DlgcTest {
+public class MyTestApp extends DlgcTest { // implements TimerListener
 
 	private static final long serialVersionUID = 1L;
 	private static Logger logger = LoggerFactory.getLogger(MyTestApp.class);
@@ -48,14 +55,12 @@ public class MyTestApp extends DlgcTest {
 	Integer loopCount = null;
 
 	public MyTestApp() {
-		// TODO Auto-generated constructor stub
 	}
 
 	Integer loopInterval = null;
 	Boolean bTestReinvite = false;
 	public MediaSession mediaSession = null;
 	private SipFactory sipFactory;
-	private TimerService timerService;
 	private CurEnv cur_env = new CurEnv();
 	private Map<String, String> authMap;
 	private Map<String, SipUser> users;
@@ -66,13 +71,11 @@ public class MyTestApp extends DlgcTest {
 	private static final String STANDARD = "standard";
 	private static final String WEBRTC = "webrtc";
 	private static Map<String, String> clientType;
-	private static Map<String, Date> lastCallTime;
+	private String serverIp;
 	private String realmId;
-	
-	// TODO
-	private static final String AUDIO = "AUDIO";
-	private static final String VEDIO = "VEDIO";
-	private static Map<String, String> callType;
+
+	private Map<String, Realm> otherServerMap = new HashMap<>();
+	private Map<String, Long> keepAliveMap = new ConcurrentHashMap<>();
 
 	@Override
 	public void servletInitialized(SipServletContextEvent evt) {
@@ -95,25 +98,51 @@ public class MyTestApp extends DlgcTest {
 					initDriver();
 
 					sipFactory = (SipFactory) getServletContext().getAttribute("javax.servlet.sip.SipFactory");
-					timerService = (TimerService) getServletContext().getAttribute(TIMER_SERVICE);
+					// timerService = (TimerService)
+					// getServletContext().getAttribute(TIMER_SERVICE);
 
 					try {
 						mediaSession = mscFactory.createMediaSession();
 					} catch (MsControlException e) {
-						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
 
 					authMap = new HashMap<String, String>();
 					users = new HashMap<String, SipUser>();
 					clientType = new HashMap<String, String>();
-					lastCallTime = new HashMap<>();
+					new HashMap<>();
+
+					serverIp = cur_env.getSettings().get("realm");
 
 					// 从数据库中读出来自己的realm_id
-					Map<String, Object> map = JDBCUtils.queryForMap(
-							"select * from realm where sip_servlet_ip = '" + cur_env.getSettings().get("realm") + "'");
+					Map<String, Object> map = JDBCUtils
+							.queryForMap("select * from realm where sip_servlet_ip = '" + serverIp + "'");
 					realmId = String.valueOf(map.get("id"));
-					logger.info("本域的id为:" + realmId);
+					logger.error("serverIp: " + serverIp + ", realmId: " + realmId);
+
+					List<Map<String, Object>> result = JDBCUtils.queryForList("select * from realm");
+					for (int i = 0; i < result.size(); i++) {
+						Map<String, Object> realmInfo = result.get(i);
+
+						// 加上那些其他域的信息
+						if (!String.valueOf(realmInfo.get("id")).equals(realmId)) {
+							Realm realm = new Realm(String.valueOf(realmInfo.get("id")),
+									String.valueOf(realmInfo.get("sip_servlet_ip")),
+									String.valueOf(realmInfo.get("name")));
+							otherServerMap.put(String.valueOf(realmInfo.get("id")), realm);
+						}
+					}
+
+					// 心跳检测
+					if (HeartBeatEnv.ENABLE) {
+						HeartBeatClient heartBeatClient = new HeartBeatClient(otherServerMap, realmId);
+						heartBeatClient.serve();
+
+						HeartBeatServer heartBeatServer = new HeartBeatServer(keepAliveMap);
+						heartBeatServer.serve();
+
+						new Thread(new BrokenTask()).start();
+					}
 
 					myServletInitialized(evt);
 				} else {
@@ -273,17 +302,13 @@ public class MyTestApp extends DlgcTest {
 			fromUser.sessions.put(toName, session);
 			fromUser.setState(toName, SipUser.IDLE);
 
-			// TODO 把这打开
-			// // 遍历fromUser，如果它和某个人正在通话，不让他发出invite其他人的邀请
-			// for (Map.Entry<String, SipSession> entry :
-			// fromUser.sessions.entrySet()) {
-			// if
-			// (entry.getValue().getAttribute("STATE").equals(SipUser.CALLING)
-			// && !entry.getKey().equals(toName)) {
-			// request.createResponse(SipServletResponse.SC_FORBIDDEN).send();
-			// return;
-			// }
-			// }
+			// 遍历fromUser，如果它和某个人正在通话，不让他发出invite其他人的邀请
+			for (Map.Entry<String, SipSession> entry : fromUser.sessions.entrySet()) {
+				if (entry.getValue().getAttribute("STATE").equals(SipUser.CALLING) && !entry.getKey().equals(toName)) {
+					request.createResponse(SipServletResponse.SC_FORBIDDEN).send();
+					return;
+				}
+			}
 
 			// 对方正在通话中
 			for (Map.Entry<String, SipSession> entry : toUser.sessions.entrySet()) {
@@ -328,11 +353,14 @@ public class MyTestApp extends DlgcTest {
 				shareLock(session, linkedSession);
 
 				createConnWithMS(session);
+
+				// ServletTimer st = timerService.createTimer(
+				// inviteForCallee.getApplicationSession(), 10000, false,
+				// (Serializable) inviteForCallee);
+
 			} else {
-				
 				// a发起跟b的呼叫，但是a的状态却不是idle，这里说明a的状态有问题，拒绝发起呼叫
-				SipServletResponse sipServletResponse = request.createResponse(SipServletResponse.SC_FORBIDDEN);
-				
+				request.createResponse(SipServletResponse.SC_FORBIDDEN).send();
 			}
 		} catch (Exception e) {
 			request.createResponse(SipServletResponse.SC_SERVER_INTERNAL_ERROR).send();
@@ -342,6 +370,9 @@ public class MyTestApp extends DlgcTest {
 		}
 	}
 
+	/**
+	 * 2xx响应
+	 */
 	@Override
 	protected void doSuccessResponse(SipServletResponse resp) throws ServletException, IOException {
 		SipSession session = resp.getSession();
@@ -356,7 +387,7 @@ public class MyTestApp extends DlgcTest {
 			String fromName = (String) session.getAttribute("USER");
 			SipUser fromUser = users.get(fromName);
 			String toName = (String) session.getAttribute("OPPO");
-			SipUser toUser = users.get(toName);
+			// SipUser toUser = users.get(toName);
 
 			if (fromUser == null) { // OK for MESSAGE
 				logger.info("Got OK for MESSAGE !");
@@ -370,7 +401,7 @@ public class MyTestApp extends DlgcTest {
 							if (sdpAnswer == null) {
 								sdpAnswer = (byte[]) session.getAttribute("180SDP");
 								if (sdpAnswer == null) {
-									// TODO internal error
+									// internal error
 								}
 							}
 
@@ -383,6 +414,7 @@ public class MyTestApp extends DlgcTest {
 						}
 					} else if (fromUser.compareState(toName, SipUser.END)) {
 						logger.info("OK for BYE/CANCEL/...");
+						// 再释放一遍也没事，里面做了检查
 						releaseSession(resp.getSession());
 					}
 				}
@@ -408,7 +440,7 @@ public class MyTestApp extends DlgcTest {
 			String fromName = (String) session.getAttribute("USER");
 			SipUser fromUser = users.get(fromName);
 			String toName = (String) session.getAttribute("OPPO");
-			SipUser toUser = users.get(toName);
+			// SipUser toUser = users.get(toName);
 
 			if (fromUser.compareState(toName, SipUser.INIT_BRIDGE)) {
 				byte[] sdpOffer = resp.getRawContent();
@@ -427,13 +459,9 @@ public class MyTestApp extends DlgcTest {
 		}
 	}
 
-	// @Override
-	// protected void doBranchResponse(SipServletResponse resp) throws
-	// ServletException, IOException {
-	// // TODO Auto-generated method stub
-	// super.doBranchResponse(resp);
-	// }
-
+	/**
+	 * 处理错误响应
+	 */
 	@Override
 	protected void doErrorResponse(SipServletResponse resp) throws ServletException, IOException {
 		SipSession session = (SipSession) resp.getSession();
@@ -470,6 +498,9 @@ public class MyTestApp extends DlgcTest {
 		}
 	}
 
+	/**
+	 * 处理ACK应答
+	 */
 	@Override
 	protected void doAck(SipServletRequest request) throws ServletException, IOException {
 		SipSession session = request.getSession();
@@ -499,6 +530,9 @@ public class MyTestApp extends DlgcTest {
 		}
 	}
 
+	/**
+	 * 处理取消消息
+	 */
 	@Override
 	public void doCancel(SipServletRequest request) throws ServletException, IOException {
 
@@ -514,9 +548,7 @@ public class MyTestApp extends DlgcTest {
 			SipUser toUser = users.get(toName);
 
 			fromUser.setState(toName, SipUser.END);
-			// SipServletResponse ok =
-			// request.createResponse(SipServletResponse.SC_OK);
-			// ok.send();
+			// request.createResponse(SipServletResponse.SC_OK).send();
 
 			SipSession linkedSession = getLinkedSession(fromName, toName);
 			if (linkedSession != null && linkedSession.isValid()) {
@@ -528,6 +560,8 @@ public class MyTestApp extends DlgcTest {
 			}
 
 			releaseSession(session);
+			releaseSession(linkedSession);
+
 		} finally {
 			setUnLock(session);
 		}
@@ -535,63 +569,85 @@ public class MyTestApp extends DlgcTest {
 
 	@Override
 	public void doBye(SipServletRequest request) throws ServletException, IOException {
+
+		request.createResponse(SipServletResponse.SC_OK).send();
+
 		SipSession session = (SipSession) request.getSession();
-		setLock(session);
+		String fromName = (String) session.getAttribute("USER");
+		String toName = (String) session.getAttribute("OPPO");
+
+		doBye(session, fromName, toName);
+	}
+
+	/**
+	 * 不是特别通用，但是还是有至少两个地方用到了，就抽出来了，注意里面向用户发的是BYE消息，而不是CANCEL
+	 * 
+	 * @param sipSession
+	 * @param fromName
+	 * @param toName
+	 */
+	public void doBye(SipSession sipSession, String fromName, String toName) {
+		setLock(sipSession);
 
 		try {
-			logger.info("Got BYE: \n" + request.toString());
 
-			String fromName = (String) session.getAttribute("USER");
 			SipUser fromUser = users.get(fromName);
-			String toName = (String) session.getAttribute("OPPO");
 			SipUser toUser = users.get(toName);
 
 			fromUser.setState(toName, SipUser.END);
-			SipServletResponse sipServletResponse = request.createResponse(SipServletResponse.SC_OK);
-			sipServletResponse.send();
 
 			SipSession linkedSession = getLinkedSession(fromName, toName);
 			if (linkedSession != null && linkedSession.isValid()) {
 				SipServletRequest bye = linkedSession.createRequest("BYE");
 				toUser.setState(fromName, SipUser.END);
 				bye.send();
-				logger.info("Bye to " + toName);
 			}
 
-			releaseSession(session);
+			releaseSession(sipSession);
+
+			// 本不该在这里释放的..但是为了资源问题，在这里直接把代理资源也释放掉
+			// A挂断，bye发给B，b回OK，在处理这个ok的时候也释放一遍，下面的代码中做了检查
+			releaseSession(linkedSession);
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {
-			setUnLock(session);
+			setUnLock(sipSession);
 		}
 	}
 
+	/**
+	 * 跨域消息
+	 */
 	@Override
 	protected void doMessage(SipServletRequest request) throws ServletException, IOException {
 
 		request.createResponse(SipServletResponse.SC_OK).send();
 
-		logger.info("receive message : \r\n" + request.toString());
-
 		String fromName = ((request.getFrom().getURI().toString()).split("[:@]"))[1];
 		String toName = ((request.getTo().getURI().toString()).split("[:@]"))[1];
 
-		logger.info("Message from " + fromName + " to " + toName);
+		logger.error("MESSAGE from [" + fromName + "] to [" + toName + "]");
+		logger.error("Content: " + request.getContent());
 
 		SipUser toUser = users.get(toName);
 
-		if (toName.split("_")[1].equals(realmId)) { // 对方是本域用户
-			if (toUser == null) { // 本域的用户且不在线，回404
+		// 对方是本域用户
+		if (toName.split("_")[1].equals(realmId)) {
+			// 本域的用户且不在线，回404
+			if (toUser == null) {
 				request.createResponse(SipServletResponse.SC_NOT_FOUND).send();
 				return;
-			} else { // 对方在线
+			} else {
+				// 对方在线
 				// Address to = sipFactory.createAddress("sip:" + toName + "@" +
 				// toUser.ip + ":" + toUser.port);
 				if (request.isInitial()) {
 					Proxy proxy = request.getProxy();
 					proxy.setRecordRoute(true);
 					proxy.setSupervised(true);
-					proxy.proxyTo(toUser.contact.getURI()); // important
+					// important
+					proxy.proxyTo(toUser.contact.getURI());
 				}
 			}
 		} else { // 对方不是本域用户
@@ -610,8 +666,93 @@ public class MyTestApp extends DlgcTest {
 
 	}
 
-	// 超时前转以及其余超时情况处理
-	public void timeout(ServletTimer st) {
+	/**
+	 * 超时前转以及其余超时情况处理
+	 * 
+	 * @param st
+	 */
+	private class TimeOutTask implements Runnable {
+
+		private SipServletRequest calleeRequest;
+		private int delay;
+
+		/**
+		 * 
+		 * @param inviteForCallee
+		 *            用于邀请被叫的 INVITE 消息
+		 * @param delay
+		 *            超时间隔
+		 */
+		public TimeOutTask(SipServletRequest inviteForCallee, int delay) {
+			this.calleeRequest = inviteForCallee;
+			this.delay = delay;
+		}
+
+		@Override
+		public void run() {
+
+			try {
+				Thread.sleep(delay * 1000);
+			} catch (InterruptedException i) {
+				i.printStackTrace();
+			}
+
+			logger.info("进入超时逻辑");
+
+			// 超时转时的session是被叫的session
+			// 所以从request里面取出的session的变量名叫做linkedSession
+			SipSession calleeSession = calleeRequest.getSession();
+			setLock(calleeSession);
+
+			try {
+				// 被叫的信息 这里从to字段取值
+				String callerName = ((calleeRequest.getFrom().getURI().toString()).split("[:@]"))[1];
+				SipUser callerUser = users.get(callerName);
+				String calleeName = ((calleeRequest.getTo().getURI().toString()).split("[:@]"))[1];
+				SipUser calleeUser = users.get(calleeName);
+
+				logger.info("主叫是: " + callerName + ", 被叫是：" + calleeName);
+
+				// 被叫的状态是INIT_BRIDGE，说明是主叫呼叫被叫，被叫长时间未接听
+				// 同时这里也处理了INVITE消息丢失的情况，对于这里来说效果是一样的
+				if (calleeUser.compareState(callerName, SipUser.INIT_BRIDGE)) {
+
+					logger.info("被叫: " + calleeName + "长时间未接");
+
+					SipSession callerSession = getLinkedSession(calleeName, callerName);
+					callerUser.setState(calleeName, SipUser.END);
+
+					SipServletRequest calleeInvite = (SipServletRequest) calleeSession.getAttribute("CUR_INVITE");
+					// 这里向被叫发取消的消息，被叫会回ok
+					calleeInvite.createCancel().send();
+
+					calleeUser.clean(callerName);
+
+					assert callerSession != null;
+					SipServletRequest callerInvite = (SipServletRequest) callerSession.getAttribute("CUR_INVITE");
+					// 向主教发这个消息
+					callerInvite.createResponse(SipServletResponse.SC_SERVER_TIMEOUT).send();
+
+					releaseSession(calleeSession);
+					releaseSession(callerSession);
+
+					logger.error("呼叫中止");
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
+				setUnLock(calleeSession);
+			}
+
+		}
+	}
+
+	/**
+	 * 先不删
+	 * 
+	 * @param st
+	 */
+	public void timeoutBack(ServletTimer st) {
 		logger.info("Time out");
 		final SipServletRequest request = (SipServletRequest) st.getInfo();
 
@@ -653,8 +794,9 @@ public class MyTestApp extends DlgcTest {
 			SipUser to = users.get((String) session.getAttribute("OPPO"));
 			from.clean(to.name);
 
-			Thread thread = new Thread(new Task((NetworkConnection) session.getAttribute("NETWORK_CONNECTION"),
-					(MediaGroup) session.getAttribute("MEDIAGROUP")));
+			Thread thread = new Thread(
+					new ReleaseTaskWhenHangUp((NetworkConnection) session.getAttribute("NETWORK_CONNECTION"),
+							(MediaGroup) session.getAttribute("MEDIAGROUP")));
 			session.removeAttribute("NETWORK_CONNECTION");
 			session.removeAttribute("MEDIAGROUP");
 			// session.invalidate();
@@ -689,24 +831,35 @@ public class MyTestApp extends DlgcTest {
 						if (fromUser.compareState(toName, SipUser.WAITING_FOR_MEDIA_SERVER)) {
 							if (linkedSession != null) {
 								if (toUser.compareState(fromName, SipUser.INIT_BRIDGE)) {
-									
+
 									// 用户邀请被叫的invite
-									SipServletRequest request = (SipServletRequest) linkedSession
+									SipServletRequest inviteForCallee = (SipServletRequest) linkedSession
 											.getAttribute("CUR_INVITE");
 
-									if (request != null) {
+									if (inviteForCallee != null) {
 
 										// 用户回给主叫的ok消息
 										SipServletResponse resp = inv.createResponse(SipServletResponse.SC_OK);
 										byte[] sdp = event.getMediaServerSdp();
 										resp.setContent(sdp, "application/sdp");
 										resp.getSession().setAttribute("PREPARE_OK", resp);
-										
+
 										// 主叫状态设置为WAITING_FOR_BRIDGE
 										fromUser.setState(toName, SipUser.WAITING_FOR_BRIDGE);
 
 										// 这里没有直接去邀请被叫而是generateSDP，这样带着ms的sdp去邀请被叫
-										gernateSDP(linkedSession);
+										generateSDP(linkedSession);
+
+										logger.info("启动计时器");
+										// ServletTimer st =
+										// timerService.createTimer(
+										// inviteForCallee.getApplicationSession(),
+										// 10000, false,
+										// (Serializable) inviteForCallee);
+										// // 定时器放在了linkedSession中
+										// linkedSession.setAttribute("TIMER",
+										// st);
+										new Thread(new TimeOutTask(inviteForCallee, 10)).start();
 									}
 								} else {
 									logger.error("undefined");
@@ -719,8 +872,6 @@ public class MyTestApp extends DlgcTest {
 							inv.send();
 						} else if (fromUser.compareState(toName, SipUser.ANSWER_BRIDGE)) {
 							// 被叫回了200ok以后进到这里
-							
-							logger.info("finish SDP");
 
 							NetworkConnection conn1 = (NetworkConnection) sipSession.getAttribute("NETWORK_CONNECTION");
 							NetworkConnection conn2 = (NetworkConnection) linkedSession
@@ -736,8 +887,9 @@ public class MyTestApp extends DlgcTest {
 							resp2.send();
 
 							SipServletRequest ack = (SipServletRequest) sipSession.getAttribute("PREPARE_ACK");
-							byte[] sdp = event.getMediaServerSdp();
-							ack.setContent(sdp, "application/sdp");
+							// 这里不用放sdp了，因为第一个invite已经带了sdp
+							// byte[] sdp = event.getMediaServerSdp();
+							// ack.setContent(sdp, "application/sdp");
 							ack.send();
 						}
 					} else {
@@ -778,7 +930,8 @@ public class MyTestApp extends DlgcTest {
 	class MyPlayerListener implements MediaEventListener<PlayerEvent> {
 
 		public void onEvent(PlayerEvent event) {
-			log("Play terminated with: " + event);
+			logger.info("Play terminated with: " + event);
+
 			// Release the call and terminate
 			MediaSession mediaSession = event.getSource().getMediaSession();
 			SipSession sipSession = (SipSession) mediaSession
@@ -815,17 +968,15 @@ public class MyTestApp extends DlgcTest {
 			if (sdpOffer == null) {
 				logger.error("NO SDP");
 			}
-			
-			// TODO 在这里判断呼叫类型
-			
-			
+
+			// 在这里判断呼叫类型
 		}
 
 		conn.getSdpPortManager().processSdpOffer(sdpOffer);
 		return conn;
 	}
 
-	private void gernateSDP(SipSession session) throws MsControlException, IOException {
+	private void generateSDP(SipSession session) throws MsControlException, IOException {
 
 		NetworkConnection conn = mediaSession.createNetworkConnection(NetworkConnection.BASIC);
 		SdpPortManager sdpManag = conn.getSdpPortManager();
@@ -850,7 +1001,7 @@ public class MyTestApp extends DlgcTest {
 	}
 
 	private void answerSDP(SipSession session, byte[] sdpAnswer) throws MsControlException, IOException {
-		
+
 		NetworkConnection conn = (NetworkConnection) session.getAttribute("NETWORK_CONNECTION");
 		SdpPortManager sdpManag = conn.getSdpPortManager();
 
@@ -860,28 +1011,10 @@ public class MyTestApp extends DlgcTest {
 		sdpManag.processSdpAnswer(sdpAnswer);
 	}
 
-	// protected void releaseDialog(SipSession sipSession, NetworkConnection
-	// conn) {
-	// MediaGroup mg = (MediaGroup) sipSession.getAttribute("MEDIAGROUP");
-	//
-	// if (mg != null) {
-	// if (conn != null)
-	// try {
-	// mg.unjoin(conn);
-	// } catch (MsControlException e) {
-	// e.printStackTrace();
-	// }
-	//
-	// mg.release();
-	// sipSession.removeAttribute("MEDIAGROUP");
-	// }
-	// }
-
 	protected void runDialog(SipSession sipSession, String src) {
 		URI prompt = URI.create(src);
 		try {
-			MediaGroup mg = null;
-			mg = (MediaGroup) sipSession.getAttribute("MEDIAGROUP");
+			MediaGroup mg = (MediaGroup) sipSession.getAttribute("MEDIAGROUP");
 			if (mg == null) {
 				mg = mediaSession.createMediaGroup(MediaGroup.PLAYER);
 				sipSession.setAttribute("MEDIAGROUP", mg);
@@ -897,7 +1030,6 @@ public class MyTestApp extends DlgcTest {
 			mg.getPlayer().play(prompt, RTC.NO_RTC, playParams);
 			logger.info("Play " + prompt);
 		} catch (Exception e) {
-			// TODO internal error
 			e.printStackTrace();
 			return;
 		}
@@ -939,16 +1071,16 @@ public class MyTestApp extends DlgcTest {
 
 	private void shareLock(SipSession src, SipSession dest) {
 		setLock(dest);
-		ReentrantLock r0 = (ReentrantLock) dest.getAttribute("LOCK");
-		ReentrantLock r = (ReentrantLock) src.getAttribute("LOCK");
-		if (r != null) {
-			dest.setAttribute("LOCK", r);
+		ReentrantLock destLock = (ReentrantLock) dest.getAttribute("LOCK");
+		ReentrantLock srcLock = (ReentrantLock) src.getAttribute("LOCK");
+		if (srcLock != null) {
+			dest.setAttribute("LOCK", srcLock);
 		} else {
-			r = new ReentrantLock();
-			src.setAttribute("LOCK", r);
-			dest.setAttribute("LOCK", r);
+			srcLock = new ReentrantLock();
+			src.setAttribute("LOCK", srcLock);
+			dest.setAttribute("LOCK", srcLock);
 		}
-		r0.unlock();
+		destLock.unlock();
 	}
 
 	private String getSipServletIpByUserName(String username) {
@@ -960,21 +1092,21 @@ public class MyTestApp extends DlgcTest {
 		Map<String, Object> map = JDBCUtils
 				.queryForMap("select * from realm where id = '" + username.split("_")[1] + "'");
 		String sipServletIp = (String) map.get("sip_servlet_ip");
+
 		return sipServletIp;
 	}
 
 	/**
-	 * 用于释放xms资源
+	 * 挂断后用于释放xms资源
 	 * 
 	 * @author zlren
-	 *
 	 */
-	private class Task implements Runnable {
+	private class ReleaseTaskWhenHangUp implements Runnable {
 
 		public NetworkConnection networkConnection;
 		public MediaGroup mediaGroup;
 
-		public Task(NetworkConnection networkConnection, MediaGroup mediaGroup) {
+		public ReleaseTaskWhenHangUp(NetworkConnection networkConnection, MediaGroup mediaGroup) {
 			super();
 			this.networkConnection = networkConnection;
 			this.mediaGroup = mediaGroup;
@@ -993,6 +1125,73 @@ public class MyTestApp extends DlgcTest {
 				}
 				networkConnection.release();
 			}
+		}
+	}
+
+	/**
+	 * 检测心跳是否超时从而判断是否和某个域发生了网络故障
+	 * 
+	 * @author zlren
+	 */
+	private class BrokenTask implements Runnable {
+
+		@Override
+		public void run() {
+			while (true) {
+				try {
+					Thread.sleep(3000);
+					long now = System.currentTimeMillis();
+					for (Map.Entry<String, Realm> entry : otherServerMap.entrySet()) {
+						if (!keepAliveMap.containsKey(entry.getKey()) || (now - keepAliveMap.get(entry.getKey())) > 8) {
+							// 认为和entry.getKey域发生网络故障
+							// logger.error("与此域发生了网络故障：" +
+							// entry.getValue().toString());
+							new Thread(new ReleaseTaskWhenBroken(entry.getValue())).start();
+						}
+					}
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
+	/**
+	 * 检测到网络故障以后负责释放资源
+	 * 
+	 * @author zlren
+	 */
+	private class ReleaseTaskWhenBroken implements Runnable {
+
+		private Realm brokenRealm;
+
+		public ReleaseTaskWhenBroken(Realm brokenRealm) {
+			this.brokenRealm = brokenRealm;
+		}
+
+		@Override
+		public void run() {
+
+			try {
+				for (Map.Entry<String, SipUser> entry : users.entrySet()) {
+					// 如果是本域用户
+					if (entry.getKey().split("_")[1].equals(realmId)) {
+						// entry.getkey 本域用户的用户名
+						// entry.getValue 本域用户的用户类
+						SipUser user = entry.getValue();
+						for (Map.Entry<String, SipSession> entry2 : user.sessions.entrySet()) {
+							// entry2.getValue是本域用户用于和entry2.getkey交流的session
+							if (entry2.getKey().split("_")[1].equals(brokenRealm)) {
+								doBye(entry2.getValue(), entry.getKey(), entry2.getKey());
+								entry2.getValue().createRequest("BYE").send();
+							}
+						}
+					}
+				}
+			} catch (Exception e) {
+
+			}
+
 		}
 	}
 }

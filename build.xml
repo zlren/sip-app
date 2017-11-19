@@ -28,7 +28,7 @@
 	<property name="DEPLOY_WEBINF" value="./WEB-INF" />
 	<property name="DESCRIPTOR_DIR" value="./deploymentDescriptor" />
 	<property name="PROPERTIES" value="./properties" />
-	<property name="DEPLOY_DIR" value="./demo_app" />
+	<property name="DEPLOY_DIR" value="./demo_war" />
 	<property name="DEPLOY_LIBS" value="./lib" />
 
 	<!--target name="compile" -->
