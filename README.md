@@ -289,7 +289,7 @@ vim /root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/standalone-s
 ```shell
 cd /root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/deployments/
 rm -rf *
-放入war包
+放入 war 包
 ```
 
 修改 `dar` 文件
@@ -332,9 +332,9 @@ vim /root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/dlgc_JSR309.
 ```
 
 ```shell
-connector.sip.address=${服务器的 IP 地址}
+connector.sip.address=${SipServerIP}
 connector.sip.port=5080
-mediaserver.1.sip.address=${XMS 的 IP 地址}
+mediaserver.1.sip.address=${XmsIP}
 mediaserver.1.sip.port=5060
 ```
 

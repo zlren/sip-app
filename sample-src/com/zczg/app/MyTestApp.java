@@ -1,7 +1,6 @@
 package com.zczg.app;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
@@ -26,20 +25,17 @@ import javax.servlet.sip.SipServletContextEvent;
 import javax.servlet.sip.SipServletRequest;
 import javax.servlet.sip.SipServletResponse;
 import javax.servlet.sip.SipSession;
-import javax.servlet.sip.TimerService;
 import javax.servlet.sip.Address;
 import javax.servlet.sip.Proxy;
 import javax.servlet.sip.ServletTimer;
 import javax.servlet.sip.SipFactory;
-import javax.servlet.sip.TimerListener;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.zczg.timeout.HeartBeatClient;
-import com.zczg.timeout.HeartBeatEnv;
-import com.zczg.timeout.HeartBeatServer;
-import com.zczg.timeout.Realm;
+import com.zczg.heart.HeartBeatClient;
+import com.zczg.heart.HeartBeatEnv;
+import com.zczg.heart.HeartBeatServer;
+import com.zczg.heart.Realm;
 import com.zczg.util.CurEnv;
 import com.zczg.util.JDBCUtils;
 import com.zczg.util.RandomCharUtil;
@@ -50,6 +46,7 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 
 	private static final long serialVersionUID = 1L;
 	private static Logger logger = LoggerFactory.getLogger(MyTestApp.class);
+
 	boolean bTestInvalidMediaTarget = false;
 	Boolean ipmsMediaServerType = false;
 	Integer loopCount = null;
@@ -72,10 +69,14 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 	private static final String WEBRTC = "webrtc";
 	private static Map<String, String> clientType;
 	private String serverIp;
-	private String realmId;
+	public static String realmId;
 
-	private Map<String, Realm> otherServerMap = new HashMap<>();
-	private Map<String, Long> keepAliveMap = new ConcurrentHashMap<>();
+	public static Map<String, Realm> otherServerMap = new HashMap<>();
+	public static Map<String, Long> keepAliveMap = new ConcurrentHashMap<>();
+
+	public static String CONTENT_TYPE_GO = "GO";
+	public static String CONTENT_TYPE_BACK = "BACK";
+	public static Map<String, String> content = new ConcurrentHashMap<>();
 
 	@Override
 	public void servletInitialized(SipServletContextEvent evt) {
@@ -135,10 +136,10 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 
 					// 心跳检测
 					if (HeartBeatEnv.ENABLE) {
-						HeartBeatClient heartBeatClient = new HeartBeatClient(otherServerMap, realmId);
+						HeartBeatClient heartBeatClient = new HeartBeatClient();
 						heartBeatClient.serve();
 
-						HeartBeatServer heartBeatServer = new HeartBeatServer(keepAliveMap);
+						HeartBeatServer heartBeatServer = new HeartBeatServer();
 						heartBeatServer.serve();
 
 						new Thread(new BrokenTask()).start();
@@ -284,6 +285,14 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 					request.createResponse(SipServletResponse.SC_NOT_FOUND).send();
 					return;
 				} else {
+
+					if (keepAliveMap.containsKey(realmId)
+							&& (System.currentTimeMillis() - keepAliveMap.get(realmId) > 8000)) {
+						// 此域不通
+						request.createResponse(SipServletResponse.SC_NOT_FOUND).send();
+						return;
+					}
+
 					// 不是本域的用户，根据域id查找对应域的sip-servlet的ip地址
 					String sipServletIp = getSipServletIpByUserName(toName);
 
@@ -377,6 +386,9 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 	protected void doSuccessResponse(SipServletResponse resp) throws ServletException, IOException {
 		SipSession session = resp.getSession();
 		setLock(session);
+
+		session.setAttribute("TIMEOUT", false);
+
 		try {
 			logger.info("Got OK");
 
@@ -697,12 +709,12 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 				i.printStackTrace();
 			}
 
-			logger.info("进入超时逻辑");
-
 			// 超时转时的session是被叫的session
 			// 所以从request里面取出的session的变量名叫做linkedSession
 			SipSession calleeSession = calleeRequest.getSession();
 			setLock(calleeSession);
+
+			logger.error("进入超时逻辑");
 
 			try {
 				// 被叫的信息 这里从to字段取值
@@ -711,13 +723,13 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 				String calleeName = ((calleeRequest.getTo().getURI().toString()).split("[:@]"))[1];
 				SipUser calleeUser = users.get(calleeName);
 
-				logger.info("主叫是: " + callerName + ", 被叫是：" + calleeName);
+				logger.error("主叫是: " + callerName + ", 被叫是：" + calleeName);
 
 				// 被叫的状态是INIT_BRIDGE，说明是主叫呼叫被叫，被叫长时间未接听
 				// 同时这里也处理了INVITE消息丢失的情况，对于这里来说效果是一样的
 				if (calleeUser.compareState(callerName, SipUser.INIT_BRIDGE)) {
 
-					logger.info("被叫: " + calleeName + "长时间未接");
+					logger.error("被叫: " + calleeName + "长时间未接");
 
 					SipSession callerSession = getLinkedSession(calleeName, callerName);
 					callerUser.setState(calleeName, SipUser.END);
@@ -730,20 +742,21 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 
 					assert callerSession != null;
 					SipServletRequest callerInvite = (SipServletRequest) callerSession.getAttribute("CUR_INVITE");
-					// 向主教发这个消息
+					// 向主叫发这个消息
 					callerInvite.createResponse(SipServletResponse.SC_SERVER_TIMEOUT).send();
 
 					releaseSession(calleeSession);
 					releaseSession(callerSession);
 
 					logger.error("呼叫中止");
+				} else {
+					logger.error("未发生超时未接");
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
 			} finally {
 				setUnLock(calleeSession);
 			}
-
 		}
 	}
 
@@ -851,14 +864,7 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 										generateSDP(linkedSession);
 
 										logger.info("启动计时器");
-										// ServletTimer st =
-										// timerService.createTimer(
-										// inviteForCallee.getApplicationSession(),
-										// 10000, false,
-										// (Serializable) inviteForCallee);
-										// // 定时器放在了linkedSession中
-										// linkedSession.setAttribute("TIMER",
-										// st);
+
 										new Thread(new TimeOutTask(inviteForCallee, 10)).start();
 									}
 								} else {
@@ -976,6 +982,13 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 		return conn;
 	}
 
+	/**
+	 * 以这种形式去申请xms的listener可以拿到xms的sdp，再拿着sdp去邀请被叫
+	 * 
+	 * @param session
+	 * @throws MsControlException
+	 * @throws IOException
+	 */
 	private void generateSDP(SipSession session) throws MsControlException, IOException {
 
 		NetworkConnection conn = mediaSession.createNetworkConnection(NetworkConnection.BASIC);
@@ -1142,10 +1155,15 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 					Thread.sleep(3000);
 					long now = System.currentTimeMillis();
 					for (Map.Entry<String, Realm> entry : otherServerMap.entrySet()) {
-						if (!keepAliveMap.containsKey(entry.getKey()) || (now - keepAliveMap.get(entry.getKey())) > 8) {
+
+						if (keepAliveMap.containsKey(entry.getKey())) {
+							logger.info("这个值是：" + String.valueOf(now - keepAliveMap.get(entry.getKey())));
+						}
+
+						if (!keepAliveMap.containsKey(entry.getKey())
+								|| (now - keepAliveMap.get(entry.getKey())) > 8000) {
 							// 认为和entry.getKey域发生网络故障
-							// logger.error("与此域发生了网络故障：" +
-							// entry.getValue().toString());
+							logger.error("与此域发生了网络故障：" + entry.getValue().toString());
 							new Thread(new ReleaseTaskWhenBroken(entry.getValue())).start();
 						}
 					}
@@ -1171,7 +1189,6 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 
 		@Override
 		public void run() {
-
 			try {
 				for (Map.Entry<String, SipUser> entry : users.entrySet()) {
 					// 如果是本域用户
@@ -1189,9 +1206,7 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 					}
 				}
 			} catch (Exception e) {
-
 			}
-
 		}
 	}
 }
