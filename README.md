@@ -34,7 +34,9 @@
 - XMS 3.3
   - 16104.rc1
 
-安装 `lrzsz` 后可以使用 `rz` 命令进行文件上传
+安装 `lrzsz` 后可以使用 `rz` 命令
+
+进行文件上传
 
 ```sh
 rpm -ivh lrzsz-0.12.20-36.el7.x86_64.rpm
@@ -130,13 +132,15 @@ GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '123456' WITH GRANT OPTI
 FLUSH PRIVILEGES;
 ```
 
+> 安装完成后的 mysql 用户名和密码分别是 root 和 123456
+
 #### JDK 1.7
 
-移除自带的 java 相关的组件
+移除自带的 java 相关的组件（如果是最小化安装的话这一步不用做）
 
 ```shell
 rpm -qa | grep java
-rpm -e --nodeps 所有上面列出的条目
+rpm -e --nodeps 所有上面列出的条目，空格分隔
 ```
 
 安装 jdk
@@ -168,7 +172,7 @@ java -version
 javac
 ```
 
-#### xmlstarlet、tmux 可选
+#### xmlstarlet、Tmux （可选）
 
 ```shell
 rpm -ivh xmlstarlet-1.5.0-1.el6.rf.x86_64.rpm
@@ -231,8 +235,15 @@ jdbc.password=Lab2016!
 
 配置文件 `heart.properties`
 
-```shell
-echo "enable=1" > heart.properties
+```bash
+vim heart.properties
+```
+
+```properties
+enable=1 # 0 disable
+cycle=3 # 心跳发送周期
+timeout=8 # 超时时间
+check=3 # 检测并释放资源
 ```
 
 不太懂这句是做什么

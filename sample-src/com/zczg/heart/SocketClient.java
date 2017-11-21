@@ -7,8 +7,6 @@ import java.net.Socket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.zczg.app.MyTestApp;
-
 /**
  * socket发送工具类
  * 
@@ -26,8 +24,6 @@ public class SocketClient {
 		this.port = port;
 		this.host = host;
 		this.content = content;
-
-		logger.info(toString());
 	}
 
 	public void send() {

@@ -4,8 +4,6 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +41,7 @@ public class HeartBeatServer {
 					}
 					String content = sb.toString();
 					
-					logger.info("收到消息：" + content);
+					// logger.info("收到消息：" + content);
 
 					// 比如2域收到1域来的消息
 					String[] args = content.split("_");
@@ -59,13 +57,13 @@ public class HeartBeatServer {
 								MyTestApp.otherServerMap.get(remoteRealmId).getServerIp(), responseContent);
 						socketClient.send();
 						
-						logger.info("回复了：" + responseContent);
+						// logger.info("回复了：" + responseContent);
 						
 					} else if (MyTestApp.CONTENT_TYPE_BACK.equals(contentType)) {
 						// 对于BACK消息直接
 						if (MyTestApp.content.get(remoteRealmId).equals(msg)) {
 							MyTestApp.keepAliveMap.put(remoteRealmId, System.currentTimeMillis());
-							logger.info("更新了时间戳：" + remoteRealmId);
+							// logger.info("更新了时间戳：" + remoteRealmId);
 						}
 					}
 				}

@@ -281,13 +281,13 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 
 				if (toName.split("_")[1].equals(realmId)) {
 					// 本域的用户且不在线（其实也包括了不存在的情况，因为不存在就一定不会在线），回404
-					logger.info("被叫不在线，也许不存在");
+					logger.error("被叫不在线，也许不存在");
 					request.createResponse(SipServletResponse.SC_NOT_FOUND).send();
 					return;
 				} else {
 
 					if (keepAliveMap.containsKey(realmId)
-							&& (System.currentTimeMillis() - keepAliveMap.get(realmId) > 8000)) {
+							&& (System.currentTimeMillis() - keepAliveMap.get(realmId) > HeartBeatEnv.TIMEOUT)) {
 						// 此域不通
 						request.createResponse(SipServletResponse.SC_NOT_FOUND).send();
 						return;
@@ -319,12 +319,15 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 				}
 			}
 
-			// 对方正在通话中
-			for (Map.Entry<String, SipSession> entry : toUser.sessions.entrySet()) {
-				if (entry.getValue().getAttribute("STATE").equals(SipUser.CALLING)) {
-					request.createResponse(SipServletResponse.SC_BUSY_HERE).send();
-					return;
+			try {
+				// 对方正在通话中
+				for (Map.Entry<String, SipSession> entry : toUser.sessions.entrySet()) {
+					if (entry.getValue().getAttribute("STATE").equals(SipUser.CALLING)) {
+						request.createResponse(SipServletResponse.SC_BUSY_HERE).send();
+						return;
+					}
 				}
+			} catch (Exception e) {
 			}
 
 			// 尝试接入
@@ -727,7 +730,13 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 
 				// 被叫的状态是INIT_BRIDGE，说明是主叫呼叫被叫，被叫长时间未接听
 				// 同时这里也处理了INVITE消息丢失的情况，对于这里来说效果是一样的
-				if (calleeUser.compareState(callerName, SipUser.INIT_BRIDGE)) {
+
+				logger.error("状态是" + callerName + ": " + callerUser.sessions.get(calleeName).getAttribute("STATE"));
+				logger.error("状态是" + calleeName + ": " + calleeUser.sessions.get(callerName).getAttribute("STATE"));
+
+				if (calleeUser.compareState(callerName, SipUser.INIT_BRIDGE)
+						|| (calleeUser.compareState(callerName, SipUser.END)
+								&& callerUser.compareState(calleeName, SipUser.END))) {
 
 					logger.error("被叫: " + calleeName + "长时间未接");
 
@@ -735,15 +744,20 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 					callerUser.setState(calleeName, SipUser.END);
 
 					SipServletRequest calleeInvite = (SipServletRequest) calleeSession.getAttribute("CUR_INVITE");
-					// 这里向被叫发取消的消息，被叫会回ok
+					// 这里向被叫发CANCEL的消息，被叫会回ok
 					calleeInvite.createCancel().send();
 
 					calleeUser.clean(callerName);
 
 					assert callerSession != null;
 					SipServletRequest callerInvite = (SipServletRequest) callerSession.getAttribute("CUR_INVITE");
-					// 向主叫发这个消息
-					callerInvite.createResponse(SipServletResponse.SC_SERVER_TIMEOUT).send();
+					try {
+						// 向主叫发这个消息
+						callerInvite.createResponse(SipServletResponse.SC_SERVER_TIMEOUT).send();
+					} catch (Exception e) {
+						logger.error(
+								"Cannot create a response for the invite, a CANCEL has been received and the INVITE was replied with a 487!");
+					}
 
 					releaseSession(calleeSession);
 					releaseSession(callerSession);
@@ -865,7 +879,7 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 
 										logger.info("启动计时器");
 
-										new Thread(new TimeOutTask(inviteForCallee, 10)).start();
+										new Thread(new TimeOutTask(inviteForCallee, 15)).start();
 									}
 								} else {
 									logger.error("undefined");
@@ -1152,18 +1166,18 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 		public void run() {
 			while (true) {
 				try {
-					Thread.sleep(3000);
+					Thread.sleep(HeartBeatEnv.CHECK);
 					long now = System.currentTimeMillis();
 					for (Map.Entry<String, Realm> entry : otherServerMap.entrySet()) {
 
 						if (keepAliveMap.containsKey(entry.getKey())) {
-							logger.info("这个值是：" + String.valueOf(now - keepAliveMap.get(entry.getKey())));
+//							logger.info("这个值是：" + String.valueOf(now - keepAliveMap.get(entry.getKey())));
 						}
 
 						if (!keepAliveMap.containsKey(entry.getKey())
-								|| (now - keepAliveMap.get(entry.getKey())) > 8000) {
+								|| (now - keepAliveMap.get(entry.getKey())) > HeartBeatEnv.TIMEOUT) {
 							// 认为和entry.getKey域发生网络故障
-							logger.error("与此域发生了网络故障：" + entry.getValue().toString());
+							logger.error("网络故障：" + entry.getValue().toString());
 							new Thread(new ReleaseTaskWhenBroken(entry.getValue())).start();
 						}
 					}

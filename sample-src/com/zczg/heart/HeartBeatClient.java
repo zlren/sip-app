@@ -19,13 +19,13 @@ public class HeartBeatClient {
 	private class ClientTask implements Runnable {
 
 		/**
-		 * 每隔3秒把自己的realmId报告给所有其他域
+		 * 每隔 HeartBeatEnv.CYCLE 把自己的realmId报告给所有其他域
 		 */
 		@Override
 		public void run() {
 			while (true) {
 				try {
-					Thread.sleep(3000);
+					Thread.sleep(HeartBeatEnv.CYCLE);
 					for (Entry<String, Realm> entry : MyTestApp.otherServerMap.entrySet()) {
 
 						// 1向2发消息，内容是1_xxxx
