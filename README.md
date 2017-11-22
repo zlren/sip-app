@@ -34,9 +34,7 @@
 - XMS 3.3
   - 16104.rc1
 
-安装 `lrzsz` 后可以使用 `rz` 命令
-
-进行文件上传
+安装 `lrzsz` 后可以使用 `rz` 命令进行文件上传
 
 ```sh
 rpm -ivh lrzsz-0.12.20-36.el7.x86_64.rpm
@@ -351,11 +349,11 @@ mediaserver.1.sip.port=5060
 
 ### 启动
 
-```shell
+```bash
 cd /root/mss-3.1.633-jboss-as-7.2.0.Final/bin
 ./run.sh
 ```
 
-> 附 x-Lite 的 SIP 账户配置
-
-![](https://ws1.sinaimg.cn/large/006tNc79ly1fliihsfthxj30i60h1wfy.jpg)
+> 附：macOS 以忽略证书错误的形式启动 Chrome
+>
+> /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --args --ignore-certificate-errors

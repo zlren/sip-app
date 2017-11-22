@@ -39,6 +39,6 @@ public class Realm {
 
 	@Override
 	public String toString() {
-		return "Realm [realmId = " + realmId + ", serverIp = " + serverIp + ", name = " + name + "]";
+		return "[realmId = " + realmId + ", ip = " + serverIp + "]";
 	}
 }

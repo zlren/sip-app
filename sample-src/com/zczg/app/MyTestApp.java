@@ -215,7 +215,7 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 				if (expires == 0) {
 					users.remove(username);
 					logger.info("User " + from + " logout!");
-
+					logger.error(username + "退出成功");
 				} else {
 					users.put(username,
 							new SipUser(username, "sip:" + username + '@' + cur_env.getSettings().get("realm"), ip,
@@ -230,12 +230,14 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 						clientType.put(username, STANDARD);
 					}
 
+					logger.error(username + "登陆成功");
 					logger.info("User " + from + " registered " + req.getHeader(VIA_HEADER));
 				}
 
 				resp.send();
 			} else {
 				SipServletResponse resp = req.createResponse(SipServletResponse.SC_FORBIDDEN);
+				logger.error(username + "登录失败");
 				logger.info("User " + from + " registered fail");
 				resp.send();
 			}
@@ -286,8 +288,10 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 					return;
 				} else {
 
-					if (keepAliveMap.containsKey(realmId)
-							&& (System.currentTimeMillis() - keepAliveMap.get(realmId) > HeartBeatEnv.TIMEOUT)) {
+					String toUserRealmId = toName.split("_")[1];
+
+					if (keepAliveMap.containsKey(toUserRealmId)
+							&& (System.currentTimeMillis() - keepAliveMap.get(toUserRealmId) > HeartBeatEnv.TIMEOUT)) {
 						// 此域不通
 						request.createResponse(SipServletResponse.SC_NOT_FOUND).send();
 						return;
@@ -613,9 +617,12 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 
 			SipSession linkedSession = getLinkedSession(fromName, toName);
 			if (linkedSession != null && linkedSession.isValid()) {
-				SipServletRequest bye = linkedSession.createRequest("BYE");
 				toUser.setState(fromName, SipUser.END);
-				bye.send();
+				try {
+					linkedSession.createRequest("BYE").send();
+				} catch (Exception e) {
+
+				}
 			}
 
 			releaseSession(sipSession);
@@ -1171,7 +1178,8 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 					for (Map.Entry<String, Realm> entry : otherServerMap.entrySet()) {
 
 						if (keepAliveMap.containsKey(entry.getKey())) {
-//							logger.info("这个值是：" + String.valueOf(now - keepAliveMap.get(entry.getKey())));
+							// logger.info("这个值是：" + String.valueOf(now -
+							// keepAliveMap.get(entry.getKey())));
 						}
 
 						if (!keepAliveMap.containsKey(entry.getKey())
@@ -1198,6 +1206,7 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 		private Realm brokenRealm;
 
 		public ReleaseTaskWhenBroken(Realm brokenRealm) {
+			logger.error("启动BrokenTask，对方id是" + brokenRealm.getRealmId());
 			this.brokenRealm = brokenRealm;
 		}
 
@@ -1207,12 +1216,19 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 				for (Map.Entry<String, SipUser> entry : users.entrySet()) {
 					// 如果是本域用户
 					if (entry.getKey().split("_")[1].equals(realmId)) {
+
+						logger.error("遍历本域用户" + entry.getKey());
+
 						// entry.getkey 本域用户的用户名
 						// entry.getValue 本域用户的用户类
 						SipUser user = entry.getValue();
+
 						for (Map.Entry<String, SipSession> entry2 : user.sessions.entrySet()) {
 							// entry2.getValue是本域用户用于和entry2.getkey交流的session
-							if (entry2.getKey().split("_")[1].equals(brokenRealm)) {
+							if (entry2.getKey().split("_")[1].equals(brokenRealm.getRealmId())) {
+
+								logger.error("结束通话 " + entry.getKey() + " " + entry2.getKey());
+
 								doBye(entry2.getValue(), entry.getKey(), entry2.getKey());
 								entry2.getValue().createRequest("BYE").send();
 							}
