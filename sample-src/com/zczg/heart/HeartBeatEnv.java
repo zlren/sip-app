@@ -24,16 +24,9 @@ public class HeartBeatEnv {
 
 			String enable = p.getProperty("enable");
 
-			CYCLE = Integer.parseInt(p.getProperty("cycle")) * 1000;
-			TIMEOUT = Integer.parseInt(p.getProperty("timeout")) * 1000;
-			CHECK = Integer.parseInt(p.getProperty("check")) * 1000;
-
 			// 当且仅当enable属性配置成1的时候，心跳检测开启
 			if ("1".equals(enable)) {
 				ENABLE = true;
-				logger.error("周期：" + CYCLE);
-				logger.error("超时：" + TIMEOUT);
-				logger.error("检查间隔" + CHECK);
 				logger.error("heartbeat enabled");
 			} else {
 				logger.error("heartbeat disabled");

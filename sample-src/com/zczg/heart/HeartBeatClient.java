@@ -2,6 +2,9 @@ package com.zczg.heart;
 
 import java.util.Map.Entry;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.zczg.app.MyTestApp;
 import com.zczg.util.RandomCharUtil;
 
@@ -11,6 +14,8 @@ import com.zczg.util.RandomCharUtil;
  * @author zlren
  */
 public class HeartBeatClient {
+
+	private static Logger logger = LoggerFactory.getLogger(HeartBeatClient.class);
 
 	public void serve() {
 		new Thread(new ClientTask()).start();
@@ -25,7 +30,9 @@ public class HeartBeatClient {
 		public void run() {
 			while (true) {
 				try {
-					Thread.sleep(HeartBeatEnv.CYCLE);
+
+					Thread.sleep(3000);
+
 					for (Entry<String, Realm> entry : MyTestApp.otherServerMap.entrySet()) {
 
 						// 1向2发消息，内容是1_xxxx
@@ -37,10 +44,16 @@ public class HeartBeatClient {
 						// 具体消息的内容是 GO_1_xxxx
 						String content = MyTestApp.CONTENT_TYPE_GO + "_" + MyTestApp.realmId + "_" + random4Number;
 
-						SocketClient socketClient = new SocketClient(8888, entry.getValue().getServerIp(), content);
+						SocketClient socketClient = new SocketClient(entry.getValue().getServerIp(), content);
 						socketClient.send();
+
+						logger.info("给域[" + entry.getKey() + "]发送出了消息：" + content);
+
+						System.out.println();
+						System.out.println();
 					}
 				} catch (Exception e) {
+					logger.info(e.getMessage());
 				}
 			}
 		}

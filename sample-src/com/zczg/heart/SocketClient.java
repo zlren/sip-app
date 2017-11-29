@@ -1,11 +1,8 @@
 package com.zczg.heart;
 
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.net.Socket;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 
 /**
  * socket发送工具类
@@ -14,28 +11,26 @@ import org.slf4j.LoggerFactory;
  */
 public class SocketClient {
 
-	private static Logger logger = LoggerFactory.getLogger(SocketClient.class);
-
-	private int port;
+	private int port = 8888;
 	private String host;
 	private String content;
 
-	public SocketClient(int port, String host, String content) {
-		this.port = port;
+	public SocketClient(String host, String content) {
 		this.host = host;
 		this.content = content;
 	}
 
 	public void send() {
 		try {
-			Socket client = new Socket(host, port);
-			OutputStreamWriter writer = new OutputStreamWriter(client.getOutputStream());
-			writer.write(content);
-			writer.flush();
-			writer.close();
-			client.close();
-		} catch (IOException e) {
-			// e.printStackTrace();
+			InetAddress address = InetAddress.getByName(host);
+			byte[] data = content.getBytes();
+			DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
+
+			@SuppressWarnings("resource")
+			DatagramSocket socket = new DatagramSocket();
+			socket.send(packet);
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 

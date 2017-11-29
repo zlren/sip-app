@@ -290,7 +290,7 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 
 					String toUserRealmId = toName.split("_")[1];
 
-					if (keepAliveMap.containsKey(toUserRealmId)
+					if (HeartBeatEnv.ENABLE && keepAliveMap.containsKey(toUserRealmId)
 							&& (System.currentTimeMillis() - keepAliveMap.get(toUserRealmId) > HeartBeatEnv.TIMEOUT)) {
 						// 此域不通
 						request.createResponse(SipServletResponse.SC_NOT_FOUND).send();
@@ -1184,9 +1184,15 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 
 						if (!keepAliveMap.containsKey(entry.getKey())
 								|| (now - keepAliveMap.get(entry.getKey())) > HeartBeatEnv.TIMEOUT) {
+
 							// 认为和entry.getKey域发生网络故障
 							logger.error("网络故障：" + entry.getValue().toString());
-							new Thread(new ReleaseTaskWhenBroken(entry.getValue())).start();
+
+							// new Thread(new
+							// ReleaseTaskWhenBroken(entry.getValue())).start();
+
+							doNetworkBroken(entry.getValue());
+
 						}
 					}
 				} catch (InterruptedException e) {
@@ -1196,47 +1202,78 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 		}
 	}
 
-	/**
-	 * 检测到网络故障以后负责释放资源
-	 * 
-	 * @author zlren
-	 */
-	private class ReleaseTaskWhenBroken implements Runnable {
+	// /**
+	// * 检测到网络故障以后负责释放资源
+	// *
+	// * @author zlren
+	// */
+	// private class ReleaseTaskWhenBroken implements Runnable {
+	//
+	// private Realm brokenRealm;
+	//
+	// public ReleaseTaskWhenBroken(Realm brokenRealm) {
+	// this.brokenRealm = brokenRealm;
+	// }
+	//
+	// @Override
+	// public void run() {
+	// logger.info("哈哈");
+	// try {
+	// for (Map.Entry<String, SipUser> entry : users.entrySet()) {
+	// // 如果是本域用户
+	// if (entry.getKey().split("_")[1].equals(realmId)) {
+	//
+	// logger.error("遍历本域用户" + entry.getKey());
+	//
+	// // entry.getkey 本域用户的用户名
+	// // entry.getValue 本域用户的用户类
+	// SipUser user = entry.getValue();
+	//
+	// for (Map.Entry<String, SipSession> entry2 : user.sessions.entrySet()) {
+	// // entry2.getValue是本域用户用于和entry2.getkey交流的session
+	// if (entry2.getKey().split("_")[1].equals(brokenRealm.getRealmId())) {
+	//
+	// logger.error("结束通话 " + entry.getKey() + " " + entry2.getKey());
+	//
+	// doBye(entry2.getValue(), entry.getKey(), entry2.getKey());
+	// entry2.getValue().createRequest("BYE").send();
+	// }
+	// }
+	// }
+	// }
+	// } catch (Exception e) {
+	// }
+	//
+	// }
+	// }
 
-		private Realm brokenRealm;
+	private void doNetworkBroken(Realm brokenRealm) {
+		try {
+			for (Map.Entry<String, SipUser> entry : users.entrySet()) {
+				// 如果是本域用户
+				if (entry.getKey().split("_")[1].equals(realmId)) {
 
-		public ReleaseTaskWhenBroken(Realm brokenRealm) {
-			logger.error("启动BrokenTask，对方id是" + brokenRealm.getRealmId());
-			this.brokenRealm = brokenRealm;
-		}
+					logger.error("遍历本域用户" + entry.getKey());
 
-		@Override
-		public void run() {
-			try {
-				for (Map.Entry<String, SipUser> entry : users.entrySet()) {
-					// 如果是本域用户
-					if (entry.getKey().split("_")[1].equals(realmId)) {
+					// entry.getkey 本域用户的用户名
+					// entry.getValue 本域用户的用户类
+					SipUser user = entry.getValue();
 
-						logger.error("遍历本域用户" + entry.getKey());
+					for (Map.Entry<String, SipSession> entry2 : user.sessions.entrySet()) {
+						// entry2.getValue是本域用户用于和entry2.getkey交流的session
+						if (entry2.getKey().split("_")[1].equals(brokenRealm.getRealmId())) {
 
-						// entry.getkey 本域用户的用户名
-						// entry.getValue 本域用户的用户类
-						SipUser user = entry.getValue();
+							logger.error("结束通话 " + entry.getKey() + " " + entry2.getKey());
 
-						for (Map.Entry<String, SipSession> entry2 : user.sessions.entrySet()) {
-							// entry2.getValue是本域用户用于和entry2.getkey交流的session
-							if (entry2.getKey().split("_")[1].equals(brokenRealm.getRealmId())) {
-
-								logger.error("结束通话 " + entry.getKey() + " " + entry2.getKey());
-
-								doBye(entry2.getValue(), entry.getKey(), entry2.getKey());
-								entry2.getValue().createRequest("BYE").send();
-							}
+							doBye(entry2.getValue(), entry.getKey(), entry2.getKey());
+							entry2.getValue().createRequest("BYE").send();
 						}
 					}
 				}
-			} catch (Exception e) {
 			}
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
+
 }
