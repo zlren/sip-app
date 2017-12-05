@@ -37,7 +37,7 @@ public class HeartBeatServer {
 
 					String content = new String(packet.getData(), 0, packet.getLength());
 
-					logger.info("收到消息：" + content);
+					logger.info("Got：" + content);
 
 					String[] args = content.split("_");
 					String contentType = args[0];
@@ -53,14 +53,14 @@ public class HeartBeatServer {
 								MyTestApp.otherServerMap.get(remoteRealmId).getServerIp(), responseContent);
 						socketClient.send();
 
-						logger.info("回复了：" + responseContent);
+						logger.info("Response：" + responseContent);
 
 					} else if (MyTestApp.CONTENT_TYPE_BACK.equals(contentType)) {
 
 						// 对于BACK消息直接
 						if (MyTestApp.content.get(remoteRealmId).equals(msg)) {
 							MyTestApp.keepAliveMap.put(remoteRealmId, System.currentTimeMillis());
-							logger.info("更新了时间戳：" + remoteRealmId);
+							logger.info("Update：" + remoteRealmId);
 						}
 					}
 

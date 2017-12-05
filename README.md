@@ -31,8 +31,8 @@
 - SipServlet
   - CentOS 7.2 （CentOS-7-x86_64-DVD-1511.iso）
   - GNOME Desktop（Compatibility Libraries & Development Tools）
-- XMS 3.3
-  - 16104.rc1
+- XMS
+  - 3.3.16104.rc1
 
 安装 `lrzsz` 后可以使用 `rz` 命令进行文件上传
 
@@ -267,8 +267,13 @@ keytool -genkeypair -alias myserver -keyalg RSA -keysize 1024 -keypass secret -v
 
 修改启动脚本
 
-```shell
+
+```bash
 vim /root/mss-3.1.633-jboss-as-7.2.0.Final/bin/run.sh
+```
+在上面文件的最后增加以下内容，以后我们会用 `run.sh` 作为启动脚本
+
+```bash
 ./standalone.sh -Djavax.net.ssl.keyStorePassword=secret -Dgov.nist.javax.sip.TLS_CLIENT_AUTH_TYPE=Disabled -Djavax.net.ssl.keyStore=/root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/ca/myserver.jks -Djavax.net.ssl.trustStorePassword=secret -Djavax.net.ssl.trustStore=/root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/ca/myserver.jks
 ```
 
@@ -348,10 +353,25 @@ mediaserver.1.sip.port=5060
 ```
 
 ### 启动
+#### 手动启动
 
 ```bash
 cd /root/mss-3.1.633-jboss-as-7.2.0.Final/bin
 ./run.sh
+```
+
+#### 开机自启动
+
+将 `/root/mss-3.1.633-jboss-as-7.2.0.Final/bin/run.sh` 添加到以下文件的末尾处，完成后赋予执行权限
+
+```bash
+vim /etc/rc.d/rc.local
+```
+
+![](https://ws2.sinaimg.cn/large/006tNc79ly1flzbtb8k9qj30ge06ujsa.jpg)
+
+```bash
+chmod +x /etc/rc.d/rc.local
 ```
 
 > 附：macOS 以忽略证书错误的形式启动 Chrome

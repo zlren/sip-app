@@ -47,7 +47,7 @@ public class HeartBeatClient {
 						SocketClient socketClient = new SocketClient(entry.getValue().getServerIp(), content);
 						socketClient.send();
 
-						logger.info("给域[" + entry.getKey() + "]发送出了消息：" + content);
+						logger.info(content + " --> [" + entry.getKey() + "]");
 
 						System.out.println();
 						System.out.println();
