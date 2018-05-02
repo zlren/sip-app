@@ -31,7 +31,7 @@ public class HeartBeatClient {
 			while (true) {
 				try {
 
-					Thread.sleep(3000);
+					Thread.sleep(HeartBeatEnv.CYCLE);
 
 					for (Entry<String, Realm> entry : MyTestApp.otherServerMap.entrySet()) {
 
@@ -43,11 +43,15 @@ public class HeartBeatClient {
 
 						// 具体消息的内容是 GO_1_xxxx
 						String content = MyTestApp.CONTENT_TYPE_GO + "_" + MyTestApp.realmId + "_" + random4Number;
+						content += "_";
+						for(int i = 1; i < 70; i++) {
+							content += "f";
+						}
 
 						SocketClient socketClient = new SocketClient(entry.getValue().getServerIp(), content);
 						socketClient.send();
 
-						logger.info(content + " --> [" + entry.getKey() + "]");
+						logger.info(content.substring(0, content.lastIndexOf("_")) + " --> [" + entry.getKey() + "]");
 
 						System.out.println();
 						System.out.println();

@@ -1,4 +1,4 @@
-### 融合通信 SipServlet
+### 融合通信 sip-servlet
 
 主要功能点为 `跨域呼叫`，使用 `XMS` 作为媒体服务器，并提供一定的网络丢包容错能力
 
@@ -7,8 +7,8 @@
 ### 所需安装文件
 
 - Linux 镜像
-  - CentOS-7-x86_64-DVD-1511.iso
-  - PowerMedia-3.3.16104-1.c7.x86_64.iso
+  - CentOS-7-x86_64-DVD-**1511**.iso
+  - PowerMedia-**3.3.16104**-1.c7.x86_64.iso
 - 安装包
   - lrzsz-0.12.20-36.el7.x86_64.rpm
   - mysql-advanced-5.6.24-linux-glibc2.5-x86_64.tar.gz
@@ -28,7 +28,7 @@
 
 #### Linux
 
-- SipServlet
+- sip-servlet
   - CentOS 7.2 （CentOS-7-x86_64-DVD-1511.iso）
   - GNOME Desktop（Compatibility Libraries & Development Tools）
 - XMS
@@ -238,20 +238,17 @@ vim heart.properties
 ```
 
 ```properties
-enable=1 # 0 disable
-cycle=3 # 心跳发送周期
-timeout=8 # 超时时间
-check=3 # 检测并释放资源
+enable=1
+cycle=10
+timeout=15
+check=15
+ip=10.109.246.93
 ```
-
-不太懂这句是做什么
 
 ```shell
 cd /root/mss-3.1.633-jboss-as-7.2.0.Final/standalone/configuration/
 java -cp ../../modules/system/layers/base/org/picketbox/main/picketbox-4.0.15.Final.jar org.jboss.security.auth.callback.RFC2617Digest admin sip-servlets secret
 ```
-
-这句可以不用做
 
 ```shell
 echo "admin=<hash>" > sip-servlets-users.properties
@@ -353,7 +350,12 @@ mediaserver.1.sip.port=5060
 ```
 
 ### 启动
+
+> 启动前保证 mysql 服务器已经启动，因为 sip-servlet 需要从数据库中读取域信息
+
 #### 手动启动
+
+写个脚本：start_sip_servlet.sh，内容如下（添加执行权限 +x）
 
 ```bash
 cd /root/mss-3.1.633-jboss-as-7.2.0.Final/bin

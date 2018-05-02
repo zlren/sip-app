@@ -1192,7 +1192,6 @@ public class MyTestApp extends DlgcTest { // implements TimerListener
 							// ReleaseTaskWhenBroken(entry.getValue())).start();
 
 							doNetworkBroken(entry.getValue());
-
 						}
 					}
 				} catch (InterruptedException e) {
